@@ -1,0 +1,184 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <netinet/in.h>
+#include <linux/types.h>
+#include <linux/netfilter.h>        /* for NF_ACCEPT */
+#include <errno.h>
+#include <regex.h>
+#include <libnetfilter_queue/libnetfilter_queue.h>
+int filt;
+char *pattern_a[2] = {"aex.com","a123.com"};
+char *pattern_b[2] = {"bex.com","b123.com"};
+char *pattern_c[2] = {"cex.com","c123.com"};
+char *pattern_d[2] = {"dex.com","d123.com"};
+char *pattern_e[2] = {"ex.com","e123.com"};
+char *pattern_f[2] = {"fex.com","f123.com"};
+char *pattern_g[2] = {"gex.com","g123.com"};
+char *pattern_h[2] = {"hex.com","h123.com"};
+char *pattern_i[2] = {"iex.com","i123.com"};
+char *pattern_j[2] = {"jex.com","j123.com"};
+char *pattern_k[2] = {"kex.com","k123.com"};
+char *pattern_l[2] = {"lex.com","l123.com"};
+char *pattern_m[2] = {"mex.com","m123.com"};
+char *pattern_n[2] = {"naver.com","n123.com"};
+char *pattern_o[2] = {"oex.com","o123.com"};
+char *pattern_p[2] = {"pex.com","p123.com"};
+char *pattern_q[2] = {"qex.com","q123.com"};
+char *pattern_r[2] = {"rex.com","r123.com"};
+char *pattern_s[2] = {"sex.com","s123.com"};
+char *pattern_t[2] = {"test.gilgil.net","t123.com"};
+char *pattern_u[2] = {"uex.com","u123.com"};
+char *pattern_v[2] = {"vex.com","v123.com"};
+char *pattern_w[2] = {"wex.com","w123.com"};
+char *pattern_x[2] = {"xex.com","x123.com"};
+char *pattern_y[2] = {"yex.com","y123.com"};
+char *pattern_z[2] = {"zex.com","z123.com"};
+
+void filtering(unsigned char * data,int ret){
+	regex_t preg;
+	regmatch_t match[2];
+	int rc;
+	int size = 26;
+
+	if(0 == (rc = regcomp(&preg,pattern_s[0],0))){
+		rc=regexec(&preg,data+40,2,match,REG_NOTBOL);
+		printf("%d\n",match[0].rm_so);
+		printf("%d\n",match[0].rm_eo);
+		filt = rc;
+	}else{
+		filt = 1;
+	}
+	regfree(&preg);
+}
+
+
+/* returns packet id */
+static u_int32_t print_pkt (struct nfq_data *tb)
+{
+    int id = 0;
+    struct nfqnl_msg_packet_hdr *ph;
+    struct nfqnl_msg_packet_hw *hwph;
+    u_int32_t mark,ifi; 
+    int ret;
+    unsigned char *data;
+
+    ph = nfq_get_msg_packet_hdr(tb);
+    if (ph) {
+        id = ntohl(ph->packet_id);
+    }
+
+    hwph = nfq_get_packet_hw(tb);
+    if (hwph) {
+        int i, hlen = ntohs(hwph->hw_addrlen);
+    }
+
+    mark = nfq_get_nfmark(tb);
+
+    ifi = nfq_get_indev(tb);
+
+    ifi = nfq_get_outdev(tb);
+    ifi = nfq_get_physindev(tb);
+
+    ifi = nfq_get_physoutdev(tb);
+
+    ret = nfq_get_payload(tb, &data);
+    if(ret>=0){
+	filtering(data,ret);
+    }
+    fputc('\n', stdout);
+
+    return id;
+}
+
+
+static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
+          struct nfq_data *nfa, void *data)
+{
+    u_int32_t id = print_pkt(nfa);
+    if(filt==0){
+	printf("BLOCK!!\n");
+    	return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+    }
+    return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+}
+
+int main(int argc, char **argv)
+{
+    struct nfq_handle *h;
+    struct nfq_q_handle *qh;
+    struct nfnl_handle *nh;
+    int fd;
+    int rv;
+    char buf[4096] __attribute__ ((aligned));
+
+  //  printf("opening library handle\n");
+    h = nfq_open();
+    if (!h) {
+        fprintf(stderr, "error during nfq_open()\n");
+        exit(1);
+    }
+
+   // printf("unbinding existing nf_queue handler for AF_INET (if any)\n");
+    if (nfq_unbind_pf(h, AF_INET) < 0) {
+        fprintf(stderr, "error during nfq_unbind_pf()\n");
+        exit(1);
+    }
+
+   // printf("binding nfnetlink_queue as nf_queue handler for AF_INET\n");
+    if (nfq_bind_pf(h, AF_INET) < 0) {
+        fprintf(stderr, "error during nfq_bind_pf()\n");
+        exit(1);
+    }
+
+   // printf("binding this socket to queue '0'\n");
+    qh = nfq_create_queue(h,  0, &cb, NULL);
+    if (!qh) {
+        fprintf(stderr, "error during nfq_create_queue()\n");
+        exit(1);
+    }
+
+  //  printf("setting copy_packet mode\n");
+    if (nfq_set_mode(qh, NFQNL_COPY_PACKET, 0xffff) < 0) {
+        fprintf(stderr, "can't set packet_copy mode\n");
+        exit(1);
+    }
+
+    fd = nfq_fd(h);
+
+    for (;;) {
+        if ((rv = recv(fd, buf, sizeof(buf), 0)) >= 0) {
+            nfq_handle_packet(h, buf, rv);
+            continue;
+        }
+        /* if your application is too slow to digest the packets that
+         * are sent from kernel-space, the socket buffer that we use
+         * to enqueue packets may fill up returning ENOBUFS. Depending
+         * on your application, this error may be ignored. nfq_nlmsg_verdict_putPlease, see
+         * the doxygen documentation of this library on how to improve
+         * this situation.
+         */
+        if (rv < 0 && errno == ENOBUFS) {
+            printf("losing packets!\n");
+            continue;
+        }
+        perror("recv failed");
+        break;
+    }
+
+   // printf("unbinding from queue 0\n");
+    nfq_destroy_queue(qh);
+
+#ifdef INSANE
+    /* normally, applications SHOULD NOT issue this command, since
+     * it detaches other programs/sockets from AF_INET, too ! */
+   // printf("unbinding from AF_INET\n");
+    nfq_unbind_pf(h, AF_INET);
+#endif
+
+   // printf("closing library handle\n");
+    nfq_close(h);
+
+    exit(0);
+}
+
