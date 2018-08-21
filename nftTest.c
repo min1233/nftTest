@@ -8,50 +8,21 @@
 #include <regex.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 int filt;
-char *pattern_a[2] = {"aex.com","a123.com"};
-char *pattern_b[2] = {"bex.com","b123.com"};
-char *pattern_c[2] = {"cex.com","c123.com"};
-char *pattern_d[2] = {"dex.com","d123.com"};
-char *pattern_e[2] = {"ex.com","e123.com"};
-char *pattern_f[2] = {"fex.com","f123.com"};
-char *pattern_g[2] = {"gex.com","g123.com"};
-char *pattern_h[2] = {"hex.com","h123.com"};
-char *pattern_i[2] = {"iex.com","i123.com"};
-char *pattern_j[2] = {"jex.com","j123.com"};
-char *pattern_k[2] = {"kex.com","k123.com"};
-char *pattern_l[2] = {"lex.com","l123.com"};
-char *pattern_m[2] = {"mex.com","m123.com"};
-char *pattern_n[2] = {"naver.com","n123.com"};
-char *pattern_o[2] = {"oex.com","o123.com"};
-char *pattern_p[2] = {"pex.com","p123.com"};
-char *pattern_q[2] = {"qex.com","q123.com"};
-char *pattern_r[2] = {"rex.com","r123.com"};
-char *pattern_s[2] = {"sex.com","s123.com"};
-char *pattern_t[2] = {"test.gilgil.net","t123.com"};
-char *pattern_u[2] = {"uex.com","u123.com"};
-char *pattern_v[2] = {"vex.com","v123.com"};
-char *pattern_w[2] = {"wex.com","w123.com"};
-char *pattern_x[2] = {"xex.com","x123.com"};
-char *pattern_y[2] = {"yex.com","y123.com"};
-char *pattern_z[2] = {"zex.com","z123.com"};
 
 void filtering(unsigned char * data,int ret){
 	regex_t preg;
-	regmatch_t match[2];
 	int rc;
 	int size = 26;
+	char * pattern = "sex.com";
 
-	if(0 == (rc = regcomp(&preg,pattern_s[0],0))){
-		rc=regexec(&preg,data+40,2,match,REG_NOTBOL);
-		printf("%d\n",match[0].rm_so);
-		printf("%d\n",match[0].rm_eo);
+	if(0 == (rc = regcomp(&preg,pattern,0))){
+		rc=regexec(&preg,data+40,0,NULL,REG_NOTBOL);
 		filt = rc;
 	}else{
 		filt = 1;
 	}
 	regfree(&preg);
 }
-
 
 /* returns packet id */
 static u_int32_t print_pkt (struct nfq_data *tb)
